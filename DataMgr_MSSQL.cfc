@@ -539,8 +539,10 @@
 <!--- [ MODIFIED: 2012.12.06 - Update [Adam M. Euans]: added datamgr_rowcount for any maxrows queries --->	
 	<cfif dbHasOffset() AND arguments.maxrows GT 1>
 		<cfparam name="arguments.advSql.select" default="">
-		<cfif len(arguments.advSql.select)><cfset arguments.advSql.select &= " , "></cfif>
-		<cfset arguments.advSql.select &= "COUNT(*) OVER () AS DataMgr_RowCount">
+		<cfif !findNoCase('DataMgr_RowCount', arguments.advSql.select)>
+			<cfif len(arguments.advSql.select)><cfset arguments.advSql.select &= " , "></cfif>		
+			<cfset arguments.advSql.select &= "COUNT(*) OVER () AS DataMgr_RowCount">
+		</cfif>
 	</cfif>
 <!--- [ /MODIFIED ] --->	
 	<cfif dbHasOffset() AND arguments.offset GT 0>
