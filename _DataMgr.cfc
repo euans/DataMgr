@@ -1334,6 +1334,10 @@
 		</cfif>
 	</cfif>
 
+<!--- [ MODIFIED: 2016.02.06 - Update [Adam M. Euans]: assure the results are always an array --->	
+	<cfif !isArray(aResults)><cfset aResults = [aResults]></cfif>
+<!--- [ /MODIFIED ] --->
+
 	<cfreturn aResults>
 </cffunction>
 
