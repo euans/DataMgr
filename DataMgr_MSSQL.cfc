@@ -20,7 +20,7 @@
 	<cfset var qDatabaseVersion = 0>
 	
 	<cfif NOT StructKeyExists(variables,"DatabaseVersion")>
-		<cfset qDatabaseVersion = runSQL("SELECT SERVERPROPERTY('productversion') AS VersionNum")>
+		<cfset qDatabaseVersion = runSQL("SELECT CAST(SERVERPROPERTY('productversion') AS VARCHAR) AS VersionNum")>
 		<cfset variables.DatabaseVersion = ListFirst(qDatabaseVersion.VersionNum,".")>
 	</cfif>
 	
@@ -545,7 +545,14 @@
 		</cfif>
 	</cfif>
 <!--- [ /MODIFIED ] --->	
-	<cfif dbHasOffset() AND arguments.offset GT 0>
+<!--- [ MODIFIED: 2016.02.06 - Update [Adam M. Euans]: added offset/fetch for MSSQL 12+ --->	
+	<cfif dbHasOffset() AND variables.DatabaseVersion GTE 11 AND arguments.offset GT 0>
+		<cfset local.searchCollection = duplicate(arguments)>
+		<cfset local.searchCollection.maxRows = 0>
+		<cfset aSQL = fRecordsSQL(argumentCollection=local.searchCollection)>
+		<cfset arrayAppend(aSQL, "OFFSET #arguments.offset# ROWS FETCH NEXT #arguments.maxRows# ROWS ONLY")>
+	<cfelseif dbHasOffset() AND arguments.offset GT 0>
+<!--- [ /MODIFIED ] --->
 		<cfset sArgs = StructCopy(arguments)>
 		<cfif StructKeyExists(sArgs,"advsql")>
 			<cfset sArgs.advsql = StructCopy(arguments.advsql)>
