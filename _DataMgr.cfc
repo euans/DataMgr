@@ -1335,6 +1335,10 @@
 		</cfif>
 	</cfif>
 
+<!--- [ MODIFIED: 2016.02.06 - Update [Adam M. Euans]: assure the results are always an array --->	
+	<cfif !isArray(aResults)><cfset aResults = [aResults]></cfif>
+<!--- [ /MODIFIED ] --->
+
 	<cfreturn aResults>
 </cffunction>
 
@@ -2317,7 +2321,12 @@
 			<cfif StructKeyExists(variables.tables[arguments.tablename][ii],"CF_Datatype") AND NOT StructKeyExists(variables.tables[arguments.tablename][ii],"Relation")>
 				<!--- Make sure field isn't a primary key --->
 				<cfif NOT StructKeyExists(variables.tables[arguments.tablename][ii],"PrimaryKey") OR NOT variables.tables[arguments.tablename][ii].PrimaryKey>
+<!--- [ MODIFIED 2012.12.10 - Update [Adam M. Euans]: Read Only Fields should not be saved - ever. ] --->
+					<cfif NOT StructKeyExists(variables.tables[arguments.tablename][ii], "ReadOnly") 
+					   OR (StructKeyExists(variables.tables[arguments.tablename][ii], "ReadOnly") AND NOT variables.tables[arguments.tablename][ii]['ReadOnly'])>
 					<cfset ArrayAppend(arrFields, variables.tables[arguments.tablename][ii])>
+				</cfif>
+<!--- [ /MODIFIED ] --->
 				</cfif>
 			</cfif>
 		</cfloop>
@@ -2397,9 +2406,16 @@
 				<cfset throwDMError("#arguments.tablename#: A record with these criteria already exists.")>
 			</cfcase>
 			<cfcase value="update,save">
+<!--- [ MODIFIED: 2011.08.09 - Update [Adam M. Euans]: Set to use argument collection - was not passing along other required arguments ] --->
+				<cfset StructAppend(in, sMatchingKeys, "yes")>
+				<cfset arguments.data = in>
+				<cfreturn updateRecord(argumentCollection=arguments)>
+				<!--- { orignonal }
 				<cfset StructAppend(in,sMatchingKeys,"yes")>
 				<cfset result = updateRecord(arguments.tablename,in)>
 				<cfreturn result>
+				--->
+<!--- [ /MODIFIED ] --->
 			</cfcase>
 			<cfcase value="skip">
 				<cfif ArrayLen(pkfields)>
@@ -2943,6 +2959,13 @@
 								} else {
 									sFieldDef["useInMultiRecordsets"] = true;
 								}
+//<!--- [ MODIFIED 2012.12.10 - Update [Adam M. Euans]: Added "Read Only" flag for Table Column ] --->
+								if ( StructKeyExists(thisField, "readOnly") AND isBoolean(thisField.readOnly) AND thisField.readOnly ) {
+									sFieldDef["READONLY"] = true;
+								} else {
+									sFieldDef["READONLY"] = false;
+								}
+//<!--- [ /MODIFY ] --->
 								//Set alias (if exists)
 								if ( StructKeyHasLen(thisField,"alias") ) {
 									sFieldDef["alias"] = Trim(thisField["alias"]);
@@ -5376,6 +5399,9 @@
 	
 	<cfif ArrayLen(relates) AND Len(arguments.pkval)>
 		<cfloop index="i" from="1" to="#ArrayLen(relates)#" step="1">
+<!--- [ MODIFIED 2012.12.10 - Update [Adam M. Euans]: Read Only Fields should not be saved - ever.] --->
+			<cfif StructKeyExists(relates[i], 'ReadOnly') AND relates[i]['ReadOnly']><cfcontinue></cfif>
+<!--- [ /MODIFY ] --->	
 			<!--- Make sure all needed attributes exist --->
 			<cfif
 					StructKeyExists(in,relates[i].ColumnName)
