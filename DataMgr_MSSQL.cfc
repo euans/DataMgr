@@ -20,7 +20,7 @@
 	<cfset var qDatabaseVersion = 0>
 	
 	<cfif NOT StructKeyExists(variables,"DatabaseVersion")>
-		<cfset qDatabaseVersion = runSQL("SELECT SERVERPROPERTY('productversion') AS VersionNum")>
+		<cfset qDatabaseVersion = runSQL("SELECT CAST(SERVERPROPERTY('productversion') AS VARCHAR) AS VersionNum")>
 		<cfset variables.DatabaseVersion = ListFirst(qDatabaseVersion.VersionNum,".")>
 	</cfif>
 	
@@ -537,7 +537,23 @@
 	<cfset var oSuper = Super>
 	<cfset var fRecordsSQL = oSuper.getRecordsSQL>
 	
-	<cfif dbHasOffset() AND arguments.offset GT 0>
+<!--- [ MODIFIED: 2012.12.06 - Update [Adam M. Euans]: added datamgr_rowcount for any maxrows queries --->	
+	<cfif dbHasOffset() AND arguments.maxrows GT 1>
+		<cfparam name="arguments.advSql.select" default="">
+		<cfif !findNoCase('DataMgr_RowCount', arguments.advSql.select)>
+			<cfif len(arguments.advSql.select)><cfset arguments.advSql.select &= " , "></cfif>		
+			<cfset arguments.advSql.select &= "COUNT(*) OVER () AS DataMgr_RowCount">
+		</cfif>
+	</cfif>
+<!--- [ /MODIFIED ] --->	
+<!--- [ MODIFIED: 2016.02.06 - Update [Adam M. Euans]: added offset/fetch for MSSQL 12+ --->	
+	<cfif dbHasOffset() AND variables.DatabaseVersion GTE 11 AND arguments.offset GT 0>
+		<cfset local.searchCollection = duplicate(arguments)>
+		<cfset local.searchCollection.maxRows = 0>
+		<cfset aSQL = fRecordsSQL(argumentCollection=local.searchCollection)>
+		<cfset arrayAppend(aSQL, "OFFSET #arguments.offset# ROWS FETCH NEXT #arguments.maxRows# ROWS ONLY")>
+	<cfelseif dbHasOffset() AND arguments.offset GT 0>
+<!--- [ /MODIFIED ] --->
 		<cfset sArgs = StructCopy(arguments)>
 		<cfif StructKeyExists(sArgs,"advsql")>
 			<cfset sArgs.advsql = StructCopy(arguments.advsql)>
@@ -552,7 +568,9 @@
 			<cfset temp = sArgs.advsql.SELECT>
 			<cfset sArgs.advsql.SELECT = ArrayNew(1)>
 			<cfset ArrayAppend(sArgs.advsql.SELECT,temp)>
-			<cfset sArgs.advsql.SELECT = sArgs.advsql.SELECT & ", ">
+<!--- [ MODIFIED: 2012.09.19 - Update [Adam M. Euans]: aArgs.advsql.SELECT is always an Array at this point --->
+			<!---<cfset sArgs.advsql.SELECT = sArgs.advsql.SELECT & ", ">--->
+<!--- [ /MODIFIED ] --->
 		<cfelseif ( isArray(sArgs.advsql.SELECT) AND ArrayLen(sArgs.advsql.SELECT) )>
 			<cfset ArrayAppend(sArgs.advsql.SELECT,", ")>
 		</cfif>
