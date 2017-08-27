@@ -75,6 +75,98 @@
 	<cfreturn local.rtnString & ')'>	
 </cffunction>
 
+<!--- [ Public Function: buildSearchSql() ] --->
+<cffunction name="buildSearchSql" access="public" returntype="any" output="false">	
+	<cfargument name="tablename" default="">
+	<cfargument name="string" default="">
+	<cfargument name="fields" default="">
+	<cfargument name="ignore" default="password,cardnumber,cardname,cardsecurity">
+	<cfargument name="exact" type="boolean" default="true">
+	<cfargument name="operator" default="AND">
+	<cfset var local = { result="1=1", propertyMap={} }>
+
+	<cfloop array="#getTableData(arguments.tablename)[arguments.tablename]#" index="local.item">.
+		<cfset local.propertyMap[local.item.columnName] = {
+			type = structKeyExists(local.item, 'cf_dataType')? uCase(local.item.cf_dataType) : 'CF_SQL_VARCHAR', 
+			isRelation = structKeyexists(local.item, 'relation')? true : false,
+			relationStruct = structKeyexists(local.item, 'relation')? local.item.relation : {}
+		}>
+	</cfloop>
+
+	<cfset local.orString = ''>
+	<cfset arguments.ignore = reReplace(trim(arguments.ignore), '\s*,\s*', ',', 'all')>
+	
+	<cfif len(arguments.string) && isSimpleValue(arguments.string)>
+
+		<cfset arguments.string = replace(urlDecode(arguments.string), "'", "''", "all")>
+		<cfset local.searchArray = arguments.exact? [arguments.string] : reMatch('[^\s]*', arguments.string)>
+		<cfset local.searchStringArray = []>
+		
+		<cfloop array="#local.searchArray#" index="local.item">
+			<cfif len(local.item)>
+				<cfset arrayAppend(local.searchStringArray, {string=local.item, array=[]})>
+				<cfset local.thisArray = []>
+				<cfloop collection="#local.propertyMap#" item="local.key">
+					<cfif (len(arguments.fields) && listFindNoCase(arguments.fields, local.key)) || !len(arguments.fields)>
+						<cfif !listFindNoCase(arguments.ignore, local.key)>
+							<cfif isDate(local.item) && local.propertyMap[local.key].type EQ 'CF_SQL_DATE'>
+								<cfset arrayAppend(local.thisArray, "DATEADD(dd, 0, DATEDIFF(dd, 0, #local.key#)) = '#dateFormat(local.item, 'yyyy-mm-dd')#'")>
+							</cfif>
+							
+							<cfif isNumeric(local.item) && local.propertyMap[local.key].type EQ 'CF_SQL_INTEGER'>
+								<cfset arrayAppend(local.thisArray, "#arguments.tablename#.#local.key# = #local.item#")>
+							</cfif>
+							
+							<cfif local.propertyMap[local.key].type EQ 'CF_SQL_VARCHAR'>
+								<cfset arrayAppend(local.thisArray, "#arguments.tablename#.#local.key# LIKE '%#local.item#%'")>								
+							</cfif>
+							
+							<cfif local.propertyMap[local.key].isRelation>
+								<cfset local.any.relationStruct = local.propertyMap[local.key].relationStruct>
+								<cftry>
+									<cfset local.any.whereCollection = {
+										tablename = arguments.tablename,
+										filters = [
+											{field = local.key, operator='LIKE', value='%#local.item#%'}
+										]	
+									}>
+									<cfset local.any.sqlArray = getWhereSQL(argumentCollection = local.any.whereCollection)>
+									<cfset arrayDeleteAt(local.any.sqlArray,1)>
+									<cfset arrayDeleteAt(local.any.sqlArray,1)>
+									<cfset local.any.sql = sqlArrayToSql(local.any.sqlArray)>
+									<cfif len(local.any.sql)>
+										<cfset arrayAppend(local.thisArray, local.any.sql)>
+									</cfif>
+								<cfcatch />
+								</cftry>
+							</cfif>
+							
+						</cfif>
+					</cfif>					
+				</cfloop>
+				<cfset local.searchStringArray[arrayLen(local.searchStringArray)].array = local.thisArray>
+			</cfif>
+		</cfloop>
+
+		<cfif structKeyExists(local.propertyMap, 'firstname') && structKeyExists(local.propertyMap, 'lastname')
+		   && !listFindNoCase(arguments.ignore, 'firstname') && !listFindNoCase(arguments.ignore, 'lastname')>
+			<cfloop array="#local.searchStringArray#" index="local.item">
+				<cfset arrayAppend(local.item.array, "firstname +' ' +lastname LIKE '%#local.item.string#%'")>
+				<cfset arrayAppend(local.item.array, "lastname + ', ' + firstname LIKE '%#local.item.string#%'")>
+			</cfloop>
+		</cfif>
+
+		<cfloop array="#local.searchStringArray#" index="local.item">
+			<cfif arrayLen(local.item.array)>
+				<cfset local.item.sqlString = '(' & arrayToList(local.item.array, ' OR ') & ')'>
+				<cfset local.result &= ' #arguments.operator# #local.item.sqlString#'>
+			</cfif>
+		</cfloop>		
+	</cfif>
+	
+	<cfreturn local.result>
+</cffunction>
+
 <!--- [ Function: getRecordCount() ] --->
 <cffunction name="getRecordCount" access="public" returntype="numeric" output="no" hint="I return the record count of a query">
 	<cfset var local = {}>
