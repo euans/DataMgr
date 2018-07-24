@@ -1186,7 +1186,7 @@
 	<cfargument name="advsql" type="struct" hint="A structure of sqlarrays for each area of a query (SELECT,FROM,WHERE,ORDER BY).">
 	<cfargument name="filters" type="array">
 	<cfargument name="offset" type="numeric" default="0">
-	<cfargument name="function" type="string" default="" hint="A function to run against the results.">
+	<cfargument name="postProcess" type="string" default="" hint="A function to run against the results.">
 	<cfargument name="FunctionAlias" type="string" required="false" hint="An alias for the column returned by a function (only if function argument is used).">
 	<cfargument name="Distinct" type="boolean" default="false">
 	<cfargument name="WithDeletedRecords" type="boolean" default="false">
@@ -1227,7 +1227,7 @@
 	<cfargument name="orderBy" type="string" default="">
 	<cfargument name="maxrows" type="numeric" default="0">
 	<cfargument name="fieldlist" type="string" default="" hint="A list of fields to return. If left blank, all fields will be returned.">
-	<cfargument name="function" type="string" default="" hint="A function to run against the results.">
+	<cfargument name="postProcess" type="string" default="" hint="A function to run against the results.">
 	<cfargument name="advsql" type="struct" hint="A structure of sqlarrays for each area of a query (SELECT,FROM,WHERE,ORDER BY).">
 	<cfargument name="filters" type="array">
 	<cfargument name="offset" type="numeric" default="0">
@@ -1241,7 +1241,7 @@
 	<cfif NOT ( StructKeyExists(arguments,"isInExists") AND isBoolean(arguments.isInExists) )>
 		<cfset arguments.isInExists = false>
 	</cfif>
-	<cfif arguments.isInExists OR ( Len(arguments["function"]) AND NOT Len(arguments.fieldlist) )>
+	<cfif arguments.isInExists OR ( Len(arguments["postProcess"]) AND NOT Len(arguments.fieldlist) )>
 		<cfset arguments.noorder = true>
 	</cfif>
 	<cfif NOT ( StructKeyExists(arguments,"noorder") AND isBoolean(arguments.noorder) )>
@@ -1292,7 +1292,7 @@
 	<cfargument name="orderBy" type="string" default="">
 	<cfargument name="maxrows" type="numeric" default="0">
 	<cfargument name="fieldlist" type="string" default="" hint="A list of fields to return. If left blank, all fields will be returned.">
-	<cfargument name="function" type="string" default="" hint="A function to run against the results.">
+	<cfargument name="postProcess" type="string" default="" hint="A function to run against the results.">
 	<cfargument name="advsql" type="struct" hint="A structure of sqlarrays for each area of a query (SELECT,FROM,WHERE,ORDER BY).">
 	
 	<cfset var sqlarray = ArrayNew(1)>
@@ -1347,7 +1347,7 @@
 	<cfargument name="orderBy" type="string" default="">
 	<cfargument name="maxrows" type="numeric" default="0">
 	<cfargument name="fieldlist" type="string" default="" hint="A list of fields to return. If left blank, all fields will be returned.">
-	<cfargument name="function" type="string" default="" hint="A function to run against the results.">
+	<cfargument name="postProcess" type="string" default="" hint="A function to run against the results.">
 	<cfargument name="advsql" type="struct" default="#StructNew()#" hint="A structure of sqlarrays for each area of a query (SELECT,FROM,WHERE,ORDER BY).">
 	
 	<cfset var aResults = ArrayNew(1)>
@@ -1368,7 +1368,7 @@
 		<cfloop index="ii" from="1" to="#ArrayLen(fields)#" step="1">
 			<cfif StructKeyExists(fields[ii],"Special") AND fields[ii].Special EQ "Sorter">
 				<cfif
-						( NOT Len(arguments["function"]) AND NOT ( StructKeyExists(arguments,"Distinct") AND arguments.Distinct IS true ) )
+						( NOT Len(arguments["postProcess"]) AND NOT ( StructKeyExists(arguments,"Distinct") AND arguments.Distinct IS true ) )
 					OR	(
 								Len(arguments.fieldlist) EQ 0
 							OR	ListFindNoCase(arguments.fieldlist, fields[ii].ColumnName)
@@ -1398,7 +1398,7 @@
 				StructKeyExists(arguments,"sortfield")
 			AND	Len(Trim(arguments.sortfield))
 			AND	(
-						( NOT Len(arguments["function"]) AND NOT ( StructKeyExists(arguments,"Distinct") AND arguments.Distinct IS true ) )
+						( NOT Len(arguments["postProcess"]) AND NOT ( StructKeyExists(arguments,"Distinct") AND arguments.Distinct IS true ) )
 					OR	(
 								Len(arguments.fieldlist) EQ 0
 							OR	ListFindNoCase(arguments.fieldlist, arguments.sortfield)
@@ -1432,7 +1432,7 @@
 	<cfargument name="orderBy" type="string" default="">
 	<cfargument name="maxrows" type="numeric" default="0">
 	<cfargument name="fieldlist" type="string" default="" hint="A list of fields to return. If left blank, all fields will be returned.">
-	<cfargument name="function" type="string" default="" hint="A function to run against the results.">
+	<cfargument name="postProcess" type="string" default="" hint="A function to run against the results.">
 	<cfargument name="advsql" type="struct" hint="A structure of sqlarrays for each area of a query (SELECT,FROM,WHERE,ORDER BY).">
 	<cfargument name="filters" type="array">
 	<cfargument name="offset" type="numeric" default="0">
@@ -1840,7 +1840,7 @@
 				</cfif>
 				<cfset sArgs["tablename"] = sField.Relation["table"]>
 				<cfset sArgs["fieldlist"] = sField.Relation["field"]>
-				<cfset sArgs["function"] = sField.Relation["type"]>
+				<cfset sArgs["postProcess"] = sField.Relation["type"]>
 				<cfset sArgs["advsql"] = sAdvSQL>
 				<cfset sArgs["join"] = sJoin>
 				<cfif arguments.tablename EQ sField.Relation["table"]>
@@ -2165,7 +2165,7 @@
 				<cfset ArrayAppend(sArgs.advsql["WHERE"]," = ")>
 				<cfset ArrayAppend(sArgs.advsql["WHERE"],getFieldSelectSQL(arguments.tablename,sField.Relation['join-field-local'],arguments.tablealias,false))>
 			</cfif>
-			<cfset sArgs["function"] = sField.Relation["type"]>
+			<cfset sArgs["postProcess"] = sField.Relation["type"]>
 			<cfif arguments.tablename EQ sField.Relation["table"]>
 				<cfset sArgs["tablealias"] = sField.Relation["table"] & "_datamgr_inner_table">
 			</cfif>
@@ -3282,7 +3282,7 @@
 	<cfargument name="tablename" type="string" required="yes">
 	<cfargument name="data" type="struct" default="#StructNew()#" hint="A structure with the data for the desired record. Each key/value indicates a value for the field matching that key.">
 	
-	<cfset var qRecords = getRecords(tablename=arguments.tablename,data=arguments.data,function="count",FunctionAlias="NumRecords")>
+	<cfset var qRecords = getRecords(tablename=arguments.tablename,data=arguments.data,postProcess="count",FunctionAlias="NumRecords")>
 	
 	<cfreturn Val(qRecords.NumRecords)>
 </cffunction>
@@ -5208,7 +5208,7 @@
 <cffunction name="getPreSeedRecords" access="private" returntype="query" output="no">
 	<cfargument name="tablename" type="string" required="yes">
 	
-	<cfreturn getRecords(tablename=arguments.tablename,function="count",FunctionAlias="NumRecords")>
+	<cfreturn getRecords(tablename=arguments.tablename,postProcess="count",FunctionAlias="NumRecords")>
 </cffunction>
 
 <cffunction name="getRelationFields" access="private" returntype="array" output="no" hint="I return an array of primary key fields.">
