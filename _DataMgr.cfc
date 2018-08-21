@@ -1468,11 +1468,11 @@
 	<cfif StructKeyExists(arguments,"distinct") AND arguments.distinct IS true>
 		<cfset ArrayAppend(sqlarray,"DISTINCT")>
 	</cfif>
-	<cfif Len(arguments.function)>
+	<cfif Len(arguments.postProcess)>
 		<cfif Len(arguments.fieldlist)>
-			<cfset ArrayAppend(sqlarray,"#arguments.function#(#adjustedfieldlist#) AS #arguments.FunctionAlias#")>
+			<cfset ArrayAppend(sqlarray,"#arguments.postProcess#(#adjustedfieldlist#) AS #arguments.FunctionAlias#")>
 		<cfelse>
-			<cfset ArrayAppend(sqlarray,"#arguments.function#(*) AS #arguments.FunctionAlias#")>
+			<cfset ArrayAppend(sqlarray,"#arguments.postProcess#(*) AS #arguments.FunctionAlias#")>
 		</cfif>
 		<cfset numcols = numcols + 1>
 	<cfelse>
@@ -4452,8 +4452,8 @@
 		</cfloop>
 	</cfif>
 	
-	<cfif Len(arguments.function)>
-		<cfset ArrayPrepend(aResults,"#arguments.function#(")>
+	<cfif Len(arguments.postProcess)>
+		<cfset ArrayPrepend(aResults,"#arguments.postProcess#(")>
 		<cfset ArrayAppend(aResults,")")>
 	</cfif>
 	
@@ -5110,7 +5110,7 @@
 		</cfloop>
 	</cfif>
 
-	<!---<cfif Len(arguments.function)>
+	<!---<cfif Len(arguments.postProcess)>
 		<cfset ArrayAppend(sqlarray,adjustedfieldlist)>
 	<cfelse>
 		<cfset ArrayAppend(sqlarray,"#arguments.fieldlist#")>
