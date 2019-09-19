@@ -16,7 +16,8 @@
 	<cfargument name="SpecialDateType" type="string" default="CF">
 	<cfargument name="XmlData" type="string" required="no">
 	<cfargument name="logfile" type="string" required="no">
-	
+	<cfargument name="Observer" type="any" required="no">
+
 	<cfset var me = 0>
 	
 	<cfset variables.datasource = arguments.datasource>
@@ -32,7 +33,11 @@
 	<cfif StructKeyExists(arguments,"logfile") AND Len(Arguments.logfile)>
 		<cfset variables.logfile = arguments.logfile>
 	</cfif>
-	
+
+	<cfif StructKeyExists(arguments,"Observer")>
+		<cfset variables.Observer = arguments.Observer>
+	</cfif>
+
 	<cfif StructKeyExists(arguments,"defaultdatabase")>
 		<cfset variables.defaultdatabase = arguments.defaultdatabase>
 	</cfif>
@@ -64,9 +69,9 @@
 		<!--- This will make sure that if a database is passed the component for that database is returned --->
 		<cfif StructKeyExists(arguments,"database")>
 			<cfif StructKeyExists(variables,"username") AND StructKeyExists(variables,"password")>
-				<cfset me = CreateObject("component","DataMgr_#arguments.database#").init(datasource=arguments.datasource,username=arguments.username,password=arguments.password)>
+				<cfset me = CreateObject("component","DataMgr_#arguments.database#").init(ArgumentCollection=Arguments)>
 			<cfelse>
-				<cfset me = CreateObject("component","DataMgr_#arguments.database#").init(arguments.datasource)>
+				<cfset me = CreateObject("component","DataMgr_#arguments.database#").init(ArgumentCollection=Arguments)>
 			</cfif>
 		</cfif>
 	<cfelse>
@@ -168,8 +173,35 @@
 
 </cffunction>
 
+<cffunction name="announceEvent" access="private" returntype="void" output="no">
+	<cfargument name="tablename" type="string" required="yes">
+	<cfargument name="action" type="string" required="yes" hint="The action taken.">
+	<cfargument name="method" type="string" required="yes" hint="The DataMgr method executed.">
+	<cfargument name="data" type="struct" required="yes" hint="The data passed to the method.">
+	<cfargument name="fieldlist" type="string" default="">
+	<cfargument name="Args" type="struct" required="yes" hint="The arguments passed to the method.">
+	<cfargument name="sql" type="any" required="no">
+	<cfargument name="pkvalue" type="any" required="no">
+	<cfargument name="ChangeUUID" type="string" required="no">
+
+	<cfif StructKeyExists(variables,"Observer") AND StructKeyExists(variables.Observer,"announceEvent")>
+		<cfset variables.Observer.announceEvent(
+			EventName="DataMgr:#arguments.action#",
+			Args=Arguments
+		)>
+	</cfif>
+
+</cffunction>
+
 <cffunction name="setCacheDate" access="public" returntype="void" output="no">
 	<cfset variables.CacheDate = now()>
+</cffunction>
+
+<cffunction name="setObserver" access="public" returntype="void" output="no">
+	<cfargument name="Observer" type="any" required="no">
+
+	<cfset variables.Observer = Arguments.Observer>
+
 </cffunction>
 
 <cffunction name="getDefaultDatasource" access="public" returntype="string" output="no">
@@ -380,7 +412,8 @@
 	<!---<cfset var sArgs = StructNew()>--->
 	<cfset var conflicttables = "">
 	<cfset var sCascadeDeletions = 0>
-	
+	<cfset var ChangeUUID = CreateUUID()>
+
 	<cfset var pklist = getPrimaryKeyFieldNames(arguments.tablename)>
 	
 	<!--- Throw exception if any pkfields are missing from incoming data --->
@@ -444,7 +477,9 @@
 				</cfif>
 			</cfif>
 		</cfloop>--->
-		
+
+		<cfset announceEvent(tablename=arguments.tablename,action="beforeDelete",method="deleteRecord",data=arguments.data,Args=Arguments,ChangeUUID=ChangeUUID)>
+
 		<!--- Look for onDelete cascade --->
 		<cfset sCascadeDeletions = getCascadeDeletions(tablename=arguments.tablename,data=arguments.data,qRecord=qRecord)>
 		<cfloop item="temp2" collection="#sCascadeDeletions#">
@@ -510,7 +545,9 @@
 			</cfif>
 			
 		</cfif>
-		
+
+		<cfset announceEvent(tablename=arguments.tablename,action="afterDelete",method="deleteRecord",data=arguments.data,Args=Arguments,ChangeUUID=ChangeUUID)>
+
 		<cfset setCacheDate()>
 	</cfif>
 
@@ -2466,7 +2503,17 @@
 	<cfset var aInsertSQL = ArrayNew(1)>
 	<cfset var sMatchingKeys = 0>
 	<cfset var sCheckData = 0>
-	
+	<cfset var ChangeUUID = CreateUUID()>
+
+	<cfif NOT StructKeyExists(Arguments,"log")>
+		<cfset Arguments.log = variables.doLogging>
+	</cfif>
+	<cfif Arguments.log>
+		<cfif arguments.tablename EQ variables.logtable>
+			<cfset Arguments.log = false>
+		</cfif>
+	</cfif>
+
 	<cfif arguments.truncate>
 		<cfset in = variables.truncate(arguments.tablename,in)>
 	</cfif>
@@ -2515,6 +2562,7 @@
 	<!--- Perform insert --->
 	<cfset aInsertSQL = insertRecordSQL(tablename=arguments.tablename,data=in,fieldlist=arguments.fieldlist)>
 	<cfif ArrayLen(aInsertSQL)>
+		<cfset announceEvent(tablename=arguments.tablename,action="beforeInsert",method="insertRecord",data=in,fieldlist=Arguments.fieldlist,Args=Arguments,sql=aInsertSQL,ChangeUUID=ChangeUUID)>
 		<cfset qCheckKey = runSQLArray(aInsertSQL)>
 	</cfif>
 	
@@ -2550,7 +2598,7 @@
 	</cfif>
 	
 	<!--- Log insert --->
-	<cfif variables.doLogging AND NOT arguments.tablename EQ variables.logtable>
+	<cfif Arguments.log>
 		<cfinvoke method="logAction">
 			<cfinvokeargument name="tablename" value="#arguments.tablename#">
 			<cfif ArrayLen(pkfields) EQ 1 AND StructKeyExists(in,pkfields[1].ColumnName)>
@@ -2561,7 +2609,9 @@
 			<cfinvokeargument name="sql" value="#sqlarray#">
 		</cfinvoke>
 	</cfif>
-	
+
+	<cfset announceEvent(tablename=arguments.tablename,action="afterInsert",method="insertRecord",data=in,fieldlist=Arguments.fieldlist,Args=Arguments,sql=aInsertSQL,pkvalue=result,ChangeUUID=ChangeUUID)>
+
 	<cfset setCacheDate()>
 	
 	<cfreturn result>
@@ -3331,7 +3381,18 @@
 			<cfset arguments.null = "no">
 		</cfif>
 	</cfif>
-	
+
+	<cfif StructKeyExists(Arguments,"cfsqltype")>
+		<cfswitch expression="#Arguments.cfsqltype#">
+		<cfcase value="CF_SQL_BLOB">
+			<cfset Arguments.value = BinaryDecode(Arguments.value,"Hex")>
+		</cfcase>
+		<cfcase value="CF_SQL_BIT">
+			<cfset Arguments.value = getBooleanSQLValue(Arguments.value)>
+		</cfcase>
+		</cfswitch>
+	</cfif>
+
 	<cfif NOT StructKeyExists(arguments,"null")>
 		<cfset arguments.null = "no">
 	</cfif>
@@ -3434,7 +3495,7 @@
 	
 	<cftry>
 		<cfif ArrayLen(aSQL)>
-			<cfquery AttributeCollection="#sAttributes#"><cfloop index="ii" from="1" to="#ArrayLen(aSQL)#" step="1"><cfif IsSimpleValue(aSQL[ii])><cfset temp = aSQL[ii]>#Trim(DMPreserveSingleQuotes(temp))#<cfelseif IsStruct(aSQL[ii])><cfset aSQL[ii] = queryparam(argumentCollection=aSQL[ii])><cfswitch expression="#aSQL[ii].cfsqltype#"><cfcase value="CF_SQL_BIT">#getBooleanSqlValue(aSQL[ii].value)#</cfcase><cfcase value="CF_SQL_DATE,CF_SQL_DATETIME">#CreateODBCDateTime(aSQL[ii].value)#</cfcase><cfdefaultcase><!--- <cfif ListFindNoCase(variables.dectypes,aSQL[ii].cfsqltype)>#Val(aSQL[ii].value)#<cfelse> ---><cfqueryparam value="#sqlvalue(aSQL[ii].value,aSQL[ii].cfsqltype)#" cfsqltype="#aSQL[ii].cfsqltype#" maxlength="#aSQL[ii].maxlength#" scale="#aSQL[ii].scale#" null="#aSQL[ii].null#" list="#aSQL[ii].list#" separator="#aSQL[ii].separator#"><!--- </cfif> ---></cfdefaultcase></cfswitch></cfif> </cfloop></cfquery>
+			<cfquery AttributeCollection="#sAttributes#"><cfloop index="ii" from="1" to="#ArrayLen(aSQL)#" step="1"><cfif IsSimpleValue(aSQL[ii])><cfset temp = aSQL[ii]>#Trim(DMPreserveSingleQuotes(temp))#<cfelseif IsStruct(aSQL[ii])><cfset aSQL[ii] = queryparam(argumentCollection=aSQL[ii])><cfif StructKeyExists(aSQL[ii],"cfsqltype")><cfswitch expression="#aSQL[ii].cfsqltype#"><cfcase value="CF_SQL_BIT">#getBooleanSqlValue(aSQL[ii].value)#</cfcase><cfcase value="CF_SQL_DATE,CF_SQL_DATETIME">#CreateODBCDateTime(aSQL[ii].value)#</cfcase><cfdefaultcase><!--- <cfif ListFindNoCase(variables.dectypes,aSQL[ii].cfsqltype)>#Val(aSQL[ii].value)#<cfelse> ---><cfqueryparam value="#sqlvalue(aSQL[ii].value,aSQL[ii].cfsqltype)#" cfsqltype="#aSQL[ii].cfsqltype#" maxlength="#aSQL[ii].maxlength#" scale="#aSQL[ii].scale#" null="#aSQL[ii].null#" list="#aSQL[ii].list#" separator="#aSQL[ii].separator#"><!--- </cfif> ---></cfdefaultcase></cfswitch></cfif></cfif> </cfloop></cfquery>
 		</cfif>
 		
 		<cfset logSQL(aSQL)>
@@ -3832,7 +3893,8 @@
 	<cfset var temp = "">
 	<cfset var result = 0>
 	<cfset var sqlarray = ArrayNew(1)>
-	
+	<cfset var ChangeUUID = CreateUUID()>
+
 	<cfif arguments.truncate>
 		<cfset in = variables.truncate(arguments.tablename,in)>
 	</cfif>
@@ -3862,7 +3924,9 @@
 	</cfif>
 	
 	<cfset sqlarray = updateRecordSQL(argumentCollection=arguments)>
-	
+
+	<cfset announceEvent(tablename=arguments.tablename,action="beforeUpdate",method="updateRecord",data=in,fieldlist=Arguments.fieldlist,Args=Arguments,sql=sqlarray,ChangeUUID=ChangeUUID)>
+
 	<cfif ArrayLen(sqlarray)>
 		<cfset runSQLArray(sqlarray)>
 	</cfif>
@@ -3885,7 +3949,9 @@
 			<cfinvokeargument name="sql" value="#sqlarray#">
 		</cfinvoke>
 	</cfif>
-	
+
+	<cfset announceEvent(tablename=arguments.tablename,action="afterUpdate",method="updateRecord",data=in,fieldlist=Arguments.fieldlist,Args=Arguments,sql=sqlarray,ChangeUUID=ChangeUUID)>
+
 	<cfset setCacheDate()>
 	
 	<cfreturn result>
@@ -4334,7 +4400,7 @@
 			arguments["Special"] = Trim(arguments["Special"]);
 			//Sorter or DeletionMark should default to zero/false
 			if (  NOT StructKeyExists(arguments,"Default") ) {
-				if ( arguments["Special"] EQ "Sorter" OR ( arguments["Special"] EQ "DeletionMark" AND arguments["CF_Datatype"] EQ "CF_SQL_BOOLEAN" ) ) {
+				if ( arguments["Special"] EQ "Sorter" OR ( arguments["Special"] EQ "DeletionMark" AND arguments["CF_Datatype"] EQ "CF_SQL_BIT" ) ) {
 					arguments["Default"] = makeDefaultValue(0,arguments["CF_DataType"]);
 				}
 				if ( arguments["Special"] EQ "CreationDate" OR arguments["Special"] EQ "LastUpdatedDate" ) {
@@ -4954,6 +5020,9 @@
 	<cfcase value="CF_SQL_BIT">
 		<cfset result = "boolean">
 	</cfcase>
+	<cfcase value="CF_SQL_BLOB">
+		<cfset result = "binary">
+	</cfcase>
 	<cfcase value="CF_SQL_CHAR,CF_SQL_IDSTAMP,CF_SQL_VARCHAR">
 		<cfset result = "string">
 	</cfcase>
@@ -5211,7 +5280,7 @@
 	<cfreturn getRecords(tablename=arguments.tablename,postProcess="count",FunctionAlias="NumRecords")>
 </cffunction>
 
-<cffunction name="getRelationFields" access="private" returntype="array" output="no" hint="I return an array of primary key fields.">
+<cffunction name="getRelationFields" access="public" returntype="array" output="no" hint="I return an array of relation fields.">
 	<cfargument name="tablename" type="string" required="yes">
 	
 	<cfset var i = 0><!--- counter --->
@@ -5311,6 +5380,9 @@
 	<cfswitch expression="#arguments.CF_DataType#">
 	<cfcase value="CF_SQL_BIT">
 		<cfset result = "boolean">
+	</cfcase>
+	<cfcase value="CF_SQL_BLOB">
+		<cfset result = "binary">
 	</cfcase>
 	<cfcase value="CF_SQL_DECIMAL,CF_SQL_DOUBLE,CF_SQL_FLOAT,CF_SQL_NUMERIC">
 		<cfset result = "numeric">
@@ -6094,7 +6166,17 @@
 	<cfelse>
 		<cfset throwDMError("Unable to add data to structure for #sResult.ColumnName#")>
 	</cfif>
-	
+
+	<cfif
+			IsBoolean(sResult.value)
+		AND	(
+					( StructKeyExists(sResult,"CF_Datatype") AND sResult.CF_Datatype EQ "CF_SQL_BIT" )
+				OR	( StructKeyExists(sResult,"Relation") AND isStruct(sResult.Relation) AND sResult.Relation.CF_Datatype EQ "CF_SQL_BIT" )
+			)
+	>
+		<cfset sResult.value = getBooleanSqlValue(sResult.value)>
+	</cfif>
+
 	<cfreturn sResult>
 </cffunction>
 
