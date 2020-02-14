@@ -91,7 +91,7 @@
 		<cfset oMixer = CreateObject("component","DataMgrEngine_cf8")>
 	<cfelseif variables.CFServer EQ "BlueDragon">
 		<cfset oMixer = CreateObject("component","DataMgrEngine_openbd")>
-	<cfelseif variables.CFServer EQ "Railo">
+	<cfelseif listFindNoCase("Railo,Lucee", variables.CFServer)>
 		<cfset oMixer = CreateObject("component","DataMgrEngine_railo")>
 	</cfif>
 	
